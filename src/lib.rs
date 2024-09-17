@@ -13,3 +13,4 @@ mod errors;
 pub use errors::Error;
 
 pub mod types;
+mod crc;

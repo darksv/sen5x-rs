@@ -10,12 +10,17 @@ pub enum Command {
     GetReadDataReadyStatus,
     /// Reading out the serial number can be used to identify the chip and to verify the presence of the sensor.
     GetSerialNumber,
+    /// Returns the product name SEN5x (SEN50, SEN54 or SEN55). It is defined as a string value
+    /// with a maximum length of 32 ASCII characters (including terminating null-character).
+    ReadProductName,
     /// Read sensor output. The measurement data can only be read out once per signal update interval as the buffer is emptied upon read-out.
     ReadMeasurement,
     /// Reinitializes the sensor by reloading user settings from EEPROM.
     Reinit,
     /// Starts the fan-cleaning manually. This command can only be executed in Measurement-Mode.
     StartFanCleaning,
+    /// Gets firmware version.
+    ReadFirmwareVersion,
 }
 
 impl Command {
@@ -26,9 +31,11 @@ impl Command {
             Self::StopMeasurement => (0x0104, 200, true),
             Self::GetReadDataReadyStatus => (0x0202, 20, true),
             Self::GetSerialNumber => (0xD033, 20, false),
+            Self::ReadProductName => (0xD014, 20, true),
             Self::ReadMeasurement => (0x03C4, 20, true),
             Self::Reinit => (0xD304, 100, false),
             Self::StartFanCleaning => (0x5607, 20, true),
+            Self::ReadFirmwareVersion => (0xD100, 20, true),
         }
     }
 }

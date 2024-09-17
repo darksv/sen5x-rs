@@ -16,3 +16,6 @@ sensirion-i2c = "0.3.0"
 
 [dev-dependencies]
 embedded-hal-mock = { version = "=0.10.0", features = ["eh1"] }
+
+[features]
+thiserror = []

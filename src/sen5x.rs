@@ -2,7 +2,8 @@ use embedded_hal::{delay::DelayNs, i2c::I2c};
 use sensirion_i2c::i2c as sen_i2c;
 
 use crate::commands::Command;
-use crate::types::Sen5xData;
+use crate::crc;
+use crate::types::{Sen5xData, Sen5xDataRaw};
 use crate::Error;
 
 /// The default I²C address of the SEN5X sensor.
@@ -73,29 +74,77 @@ where
         Ok(serial)
     }
 
-    /// Read converted sensor data.
-    pub fn measurement(&mut self) -> Result<Sen5xData, Error<E>> {
+    /// Get 48-bit serial number.
+    pub fn product_name(&mut self) -> Result<[u8; 32], Error<E>> {
+        let mut buf = [0; 48];
+        self.delayed_read_cmd(Command::ReadProductName, &mut buf)?;
+
+        let mut bytes = [0u8; 32];
+        for i in 0..16 {
+            let hi = buf[i * 3 + 0];
+            let lo = buf[i * 3 + 1];
+            let crc = buf[i * 3 + 2];
+            if crc::crc(&[hi, lo]) != crc {
+                return Err(Error::Crc);
+            }
+            bytes[i * 2 + 0] = hi;
+            bytes[i * 2 + 1] = lo;
+        }
+
+        Ok(bytes)
+    }
+
+    /// Read firmware version.
+    pub fn read_firmware_version(&mut self) -> Result<u8, Error<E>> {
+        let mut buf = [0u8; 3];
+        self.delayed_read_cmd(Command::ReadFirmwareVersion, &mut buf)?;
+        let [fw, res, crc] = buf;
+        if crc::crc(&[fw, res]) != crc {
+            return Err(Error::Crc);
+        }
+        Ok(fw)
+    }
+
+    /// Read raw sensor data.
+    pub fn measurement_raw(&mut self) -> Result<Sen5xDataRaw, Error<E>> {
         let mut buf = [0; 24];
         self.delayed_read_cmd(Command::ReadMeasurement, &mut buf)?;
-        // buf[2], buf[5], buf[8], buf[11], buf[14], buf[17], buf[20], buf[23] are CRC bytes and are not used.
-        let pm1_0 = u16::from_be_bytes([buf[0], buf[1]]);
-        let pm2_5 = u16::from_be_bytes([buf[3], buf[4]]);
-        let pm4_0 = u16::from_be_bytes([buf[6], buf[7]]);
-        let pm10_0 = u16::from_be_bytes([buf[9], buf[10]]);
-        let humidity = u16::from_be_bytes([buf[12], buf[13]]);
-        let temperature = u16::from_be_bytes([buf[15], buf[16]]);
-        let voc_index = u16::from_be_bytes([buf[18], buf[19]]);
-        let nox_index = u16::from_be_bytes([buf[21], buf[22]]);
 
+        let mut values = [0u16; 8];
+        for value_idx in 0..8 {
+            let hi = buf[value_idx * 3 + 0];
+            let lo = buf[value_idx * 3 + 1];
+            let crc = buf[value_idx * 3 + 2];
+            if crc::crc(&[hi, lo]) != crc {
+                return Err(Error::Crc);
+            }
+            values[value_idx] = u16::from_be_bytes([hi, lo]);
+        }
+
+        Ok(Sen5xDataRaw {
+            pm1_0: values[0],
+            pm2_5: values[1],
+            pm4_0: values[2],
+            pm10_0: values[3],
+            humidity: values[4],
+            temperature: values[5],
+            voc_index: values[6],
+            nox_index: values[7],
+        })
+    }
+
+    /// Read converted sensor data.
+    pub fn measurement(&mut self) -> Result<Sen5xData, Error<E>> {
+        let data = self.measurement_raw()?;
         Ok(Sen5xData {
-            pm1_0: pm1_0 as f32 / 10f32,
-            pm2_5: pm2_5 as f32 / 10f32,
-            pm4_0: pm4_0 as f32 / 10f32,
-            pm10_0: pm10_0 as f32 / 10f32,
-            temperature: temperature as f32 / 200f32,
-            humidity: humidity as f32 / 100f32,
-            voc_index: voc_index as f32 / 10f32,
-            nox_index: nox_index as f32 / 10f32,
+            pm1_0: data.pm1_0 as f32 / 10f32,
+            pm2_5: data.pm2_5 as f32 / 10f32,
+            pm4_0: data.pm4_0 as f32 / 10f32,
+            pm10_0: data.pm10_0 as f32 / 10f32,
+            temperature: data.temperature as f32 / 200f32,
+            humidity: data.humidity as f32 / 100f32,
+            voc_index: data.voc_index as f32 / 10f32,
+            nox_index: data.nox_index as f32 / 10f32,
         })
     }
 
