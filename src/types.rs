@@ -1,4 +1,5 @@
 /// SEN5x sensor data.
+#[derive(Debug)]
 pub struct Sen5xData {
     /// Mass Concentration PM1.0 [μg/m³]
     pub pm1_0: f32,
@@ -19,6 +20,7 @@ pub struct Sen5xData {
 }
 
 /// SEN5x sensor raw data.
+#[derive(Debug)]
 pub struct Sen5xDataRaw {
     /// Mass Concentration PM1.0 [μg/m³] [×10]
     pub pm1_0: u16,
